@@ -4,11 +4,10 @@ use crossterm::{
     ExecutableCommand,
 };
 use ratatui::{
-    prelude::{Constraint, CrosstermBackend, Direction, Layout, Terminal},
-    style::{Color, Style},
-    text::{Line, Span, Text},
-    widgets::Paragraph,
-    Frame,
+    prelude::{Alignment, Constraint, CrosstermBackend, Direction, Layout, Terminal},
+    style::{Color, Style, Stylize},
+    text::{Line, Span},
+    widgets::{Paragraph, Wrap},
 };
 use std::io::{stdout, Result, Stdout};
 
@@ -30,19 +29,20 @@ impl App {
         }
     }
 
-    pub fn setup(&self) -> Result<()> {
+    pub fn _setup(&self) -> Result<()> {
         stdout().execute(EnterAlternateScreen)?;
         enable_raw_mode()?;
 
         Ok(())
     }
 
-    pub fn teardown(&self) -> Result<()> {
+    pub fn _teardown(&self) -> Result<()> {
         stdout().execute(LeaveAlternateScreen)?;
         disable_raw_mode()?;
 
         Ok(())
     }
+
     pub fn update(&mut self) {
         if let Event::Key(key) = crossterm::event::read().unwrap() {
             if key.kind == KeyEventKind::Press {
@@ -61,7 +61,7 @@ impl App {
             }
         }
     }
-    // fn ui(&mut self, f: &mut Frame, top_panel_text: &str, side_panel_text: Vec<Line<'_>>) {}
+
     fn generate_sidebar_content(
         liked_category: String,
         disliked_categories: Vec<String>,
@@ -103,7 +103,7 @@ impl App {
         liked_category: &String,
         disliked_categories: &Vec<String>,
     ) -> Result<String> {
-        let mut response = String::from("");
+        let response: String;
         loop {
             let disliked_catogories_clone = disliked_categories.clone();
             self.terminal.draw(|f| {
@@ -116,7 +116,14 @@ impl App {
                     .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
                     .split(layout[0]);
 
-                f.render_widget(Paragraph::new(question), sub_layout[0]);
+                f.render_widget(
+                    Paragraph::new(question)
+                        .alignment(Alignment::Center)
+                        .white()
+                        .on_light_blue()
+                        .wrap(Wrap { trim: false }),
+                    sub_layout[0],
+                );
                 f.render_widget(Paragraph::new(self.input.as_str()), sub_layout[1]);
                 f.render_widget(
                     Paragraph::new(App::generate_sidebar_content(

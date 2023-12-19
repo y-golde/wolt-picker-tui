@@ -85,7 +85,11 @@ impl PickingCycle {
             let random_restaurant = self.get_random_restaurants().await;
             let categories = random_restaurant.filtering.filters[0].values.clone();
 
-            let top_panel_content = format!("do you want to eat at {}", random_restaurant.title);
+            let top_panel_content = format!(
+                "do you want to eat at {title} \n {tags} \n",
+                title = random_restaurant.title,
+                tags = { format!("{:?}", &categories) },
+            );
             let want_to_eat_at = self
                 .app_instance
                 .prompt_question(
