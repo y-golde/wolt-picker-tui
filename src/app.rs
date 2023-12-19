@@ -27,7 +27,7 @@ pub struct App {
     choice_index: usize,
 }
 
-const MAX_MAP_ZOOM_OUT_DISTANCE: f64 = 10.0;
+const MAX_MAP_ZOOM_OUT_DISTANCE: f64 = 20.0;
 const MIN_MAP_ZOOM_OUT_DISTANCE: f64 = 0.3;
 
 impl App {
@@ -59,8 +59,8 @@ impl App {
         Ok(())
     }
 
-    pub fn update(&mut self, choices_len: &usize) -> Result<()> {
-        if crossterm::event::poll(std::time::Duration::from_millis(25))? {
+    pub fn choice_input_listener(&mut self, choices_len: &usize) -> Result<()> {
+        if crossterm::event::poll(std::time::Duration::from_millis(15))? {
             if let Event::Key(key) = crossterm::event::read().unwrap() {
                 if key.kind == KeyEventKind::Press {
                     match key.code {
@@ -154,89 +154,175 @@ impl App {
         lines
     }
 
+    fn render_top_section(f: &mut Frame, top_section_text: String, area: Rect) {
+        f.render_widget(
+            Paragraph::new(top_section_text)
+                .alignment(Alignment::Center)
+                .white()
+                .on_light_blue()
+                .wrap(Wrap { trim: false }),
+            area,
+        );
+    }
+
+    fn render_choices(f: &mut Frame, choices: &Vec<String>, choice_index: usize, area: Rect) {
+        let choices_element = App::get_choices_element(&choices, choice_index);
+
+        f.render_widget(
+            Paragraph::new(choices_element).block(Block::default().borders(Borders::ALL)),
+            area,
+        );
+    }
+
+    fn render_map(
+        f: &mut Frame,
+        zoom: f64,
+        address_coordinates: (f64, f64),
+        restaurant_coordinates: (f64, f64),
+        area: Rect,
+    ) {
+        let map = Map {
+            resolution: canvas::MapResolution::High,
+            color: Color::Cyan,
+        };
+
+        let (addr_lat, addr_lon) = address_coordinates; // yes, the coordinates are backwards...
+
+        // Displaying the map
+        f.render_widget(
+            Canvas::default()
+                .marker(ratatui::symbols::Marker::HalfBlock)
+                .x_bounds([addr_lat - zoom, addr_lat + zoom])
+                .y_bounds([addr_lon - zoom, addr_lon + zoom])
+                .paint(|context| {
+                    context.draw(&map);
+
+                    context.draw(&canvas::Line::new(
+                        addr_lat,
+                        addr_lon,
+                        restaurant_coordinates.0,
+                        restaurant_coordinates.1,
+                        Color::Green,
+                    ));
+
+                    context.draw(&Points {
+                        color: Color::Magenta,
+                        coords: &[restaurant_coordinates],
+                    });
+
+                    context.draw(&Points {
+                        color: Color::White,
+                        coords: &[address_coordinates],
+                    });
+                }),
+            area,
+        );
+    }
+
+    fn render_resteraunt_display(
+        f: &mut Frame,
+        top_section_text: String,
+        choices: &Vec<String>,
+        choice_index: usize,
+        zoom: f64,
+        address_coordinates: (f64, f64),
+        restaurant_coordinates: (f64, f64),
+    ) {
+        let (layout, sub_layout) = App::get_restaurant_display(&f);
+
+        App::render_top_section(f, top_section_text, sub_layout[0]);
+        App::render_choices(f, choices, choice_index, sub_layout[1]);
+        App::render_map(
+            f,
+            zoom,
+            address_coordinates,
+            restaurant_coordinates,
+            layout[1],
+        )
+    }
+
+    fn get_coordinates(&mut self, restaurant: &ResterauntItem) -> ((f64, f64), (f64, f64)) {
+        let address_coordinates: (f64, f64) = (self.address.1.into(), self.address.0.into()); // yes, the coordinates are backwards...
+
+        let restaurant_coordinates_vec = restaurant.venue.location.to_owned();
+        let restaurant_coordinates = (restaurant_coordinates_vec[0], restaurant_coordinates_vec[1]);
+
+        (address_coordinates, restaurant_coordinates)
+    }
+
     pub fn display_restaurant_question(
         &mut self,
         question: &str,
         restaurant: &ResterauntItem,
         choices: Vec<String>,
-        refresh_zoom: bool,
     ) -> Result<usize> {
-        if refresh_zoom {
-            self.current_zoom = MAX_MAP_ZOOM_OUT_DISTANCE;
-        }
+        self.current_zoom = MAX_MAP_ZOOM_OUT_DISTANCE;
+
         let choice_index: usize;
 
         loop {
-            let address_coordinates: (f64, f64) = (self.address.0.into(), self.address.1.into());
-            let (addr_lon, addr_lat) = address_coordinates; // yes, the coordinates are backwards...
             let restaurant_clone = restaurant.clone();
+            let (address_coordinates, restaurant_coordinates) =
+                self.get_coordinates(&restaurant.clone());
 
-            let restaurant_coordinates_vec = restaurant_clone.venue.location.to_owned();
-            let restaurant_coordinates =
-                (restaurant_coordinates_vec[0], restaurant_coordinates_vec[1]);
-
-            self.update_zoom((addr_lat, addr_lon), restaurant_coordinates);
+            self.update_zoom(address_coordinates, restaurant_coordinates);
 
             let restaurant_description = App::get_restaurant_description(&restaurant_clone);
+            let top_section_text = format!("{} \n {}", question, restaurant_description);
 
-            let choices_element = App::get_choices_element(&choices, self.choice_index);
-
-            let choices_len = &choices.len();
+            let zoom = self.current_zoom;
 
             self.terminal.draw(|f| {
-                let (layout, sub_layout) = App::get_restaurant_display(&f);
-
-                f.render_widget(
-                    Paragraph::new(format!("{} \n {}", question, restaurant_description))
-                        .alignment(Alignment::Center)
-                        .white()
-                        .on_light_blue()
-                        .wrap(Wrap { trim: false }),
-                    sub_layout[0],
-                );
-                f.render_widget(
-                    Paragraph::new(choices_element).block(Block::default().borders(Borders::ALL)),
-                    sub_layout[1],
-                );
-
-                let map = Map {
-                    resolution: canvas::MapResolution::High,
-                    color: Color::Cyan,
-                };
-
-                let zoom = self.current_zoom;
-                // Displaying the map
-                f.render_widget(
-                    Canvas::default()
-                        .marker(ratatui::symbols::Marker::HalfBlock)
-                        .x_bounds([addr_lat - zoom, addr_lat + zoom])
-                        .y_bounds([addr_lon - zoom, addr_lon + zoom])
-                        .paint(|context| {
-                            context.draw(&map);
-
-                            context.draw(&canvas::Line::new(
-                                addr_lat,
-                                addr_lon,
-                                restaurant_coordinates.0,
-                                restaurant_coordinates.1,
-                                Color::Green,
-                            ));
-
-                            context.draw(&Points {
-                                color: Color::Magenta,
-                                coords: &[restaurant_coordinates],
-                            });
-
-                            context.draw(&Points {
-                                color: Color::White,
-                                coords: &[(addr_lat, addr_lon)],
-                            });
-                        }),
-                    layout[1],
-                ); // work on the map
+                App::render_resteraunt_display(
+                    f,
+                    top_section_text,
+                    &choices,
+                    self.choice_index,
+                    zoom,
+                    address_coordinates,
+                    restaurant_coordinates,
+                )
             })?;
 
-            self.update(choices_len).unwrap();
+            self.choice_input_listener(&choices.len()).unwrap();
+
+            if self.should_quit {
+                choice_index = self.choice_index;
+                self.choice_index = 0;
+                self.should_quit = false;
+                break;
+            }
+        }
+
+        Ok(choice_index)
+    }
+
+    pub fn display_category_question(
+        &mut self,
+        question: &str,
+        restaurant: &ResterauntItem,
+        choices: Vec<String>,
+    ) -> Result<usize> {
+        let choice_index: usize;
+
+        loop {
+            let (address_coordinates, restaurant_coordinates) = self.get_coordinates(&restaurant);
+
+            let zoom = self.current_zoom;
+
+            self.terminal.draw(|f| {
+                App::render_resteraunt_display(
+                    f,
+                    question.to_string(),
+                    &choices,
+                    self.choice_index,
+                    zoom,
+                    address_coordinates,
+                    restaurant_coordinates,
+                )
+            })?;
+
+            self.choice_input_listener(&choices.len()).unwrap();
 
             if self.should_quit {
                 choice_index = self.choice_index;

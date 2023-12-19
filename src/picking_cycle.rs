@@ -94,7 +94,6 @@ impl PickingCycle {
                     "Do you want to eat at",
                     &random_restaurant,
                     first_question_choices,
-                    true,
                 )
                 .unwrap();
 
@@ -115,11 +114,10 @@ impl PickingCycle {
             ];
             let second_choice_index = self
                 .app_instance
-                .display_restaurant_question(
+                .display_category_question(
                     format!("are you in the mood for {} today?", random_category).as_str(),
                     &random_restaurant,
                     second_question_choices,
-                    false,
                 )
                 .unwrap();
 
