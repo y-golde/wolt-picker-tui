@@ -4,7 +4,7 @@ use crate::controllers::WoltAPITypes::ResterauntItem;
 use controllers::WoltAPITypes::GetAllRestaurantsResponse;
 use rand::Rng;
 pub struct PickingCycle {
-    address: String, // impl!
+    address: (f32, f32), // impl!
     liked_category: String,
     disliked_categories: Vec<String>,
     restaurants: Option<GetAllRestaurantsResponse>,
@@ -13,9 +13,11 @@ pub struct PickingCycle {
 
 impl PickingCycle {
     pub fn new() -> Self {
-        let app_instance = App::new();
+        let address = PickingCycle::get_addr();
+        let app_instance = App::new(address);
+
         PickingCycle {
-            address: String::from(""),
+            address,
             liked_category: String::from(""),
             disliked_categories: vec![],
             restaurants: None,
@@ -23,7 +25,7 @@ impl PickingCycle {
         }
     }
 
-    fn get_lat_lon(&self) -> (f32, f32) {
+    fn get_addr() -> (f32, f32) {
         // TODO: impl with addr
         return (32.08462100522144, 34.8215676471591);
     }
@@ -34,7 +36,7 @@ impl PickingCycle {
     async fn get_restaurants(&mut self) -> &GetAllRestaurantsResponse {
         match &self.restaurants {
             None => {
-                let (lat, lon) = self.get_lat_lon();
+                let (lat, lon) = self.address;
                 let api = controllers::WoltAPI::new(lat, lon);
                 let resteraunts = api.get_all_resteraunts().await.unwrap();
                 let resteraunts_option = Some(resteraunts);
@@ -46,7 +48,7 @@ impl PickingCycle {
         }
     }
 
-    async fn get_random_restaurants(&mut self) -> ResterauntItem {
+    async fn get_random_restaurant_pool(&mut self) -> ResterauntItem {
         let resteraunts_clone = self.get_restaurants().await.clone();
         let restaurants_items = &resteraunts_clone.sections[0].items;
 
@@ -79,51 +81,10 @@ impl PickingCycle {
     }
 
     pub async fn start(&mut self) {
-        let pick: ResterauntItem;
-
-        loop {
-            let random_restaurant = self.get_random_restaurants().await;
-            let categories = random_restaurant.filtering.filters[0].values.clone();
-
-            let top_panel_content = format!(
-                "do you want to eat at {title} \n {tags} \n",
-                title = random_restaurant.title,
-                tags = { format!("{:?}", &categories) },
-            );
-            let want_to_eat_at = self
-                .app_instance
-                .prompt_question(
-                    top_panel_content.as_str(),
-                    &self.liked_category,
-                    &self.disliked_categories,
-                )
-                .unwrap();
-
-            if want_to_eat_at == "yes" {
-                pick = random_restaurant;
-                break;
-            }
-
-            let random_category =
-                &categories[rand::thread_rng().gen_range(0..categories.len())].clone();
-            let liked_or_disliked = self
-                .app_instance
-                .prompt_question(
-                    &format!("are you in the mood for {category} today? type 'yes' to find another {category} place, 'no' to filter {category} out or anything else to skip it", category = random_category),
-                    &self.liked_category,
-                    &self.disliked_categories
-                ).unwrap();
-
-            if liked_or_disliked == "yes" {
-                self.liked_category = random_category.to_string();
-            } else if liked_or_disliked == "no" {
-                self.disliked_categories.push(random_category.to_string());
-            }
-        }
-        println!(
-            "It's a match! {} it is!, visit the website at {}",
-            pick.title, pick.link.target
-        );
+        let random_restaurant = self.get_random_restaurant_pool().await;
+        self.app_instance
+            .display_restaurant(&random_restaurant)
+            .unwrap();
     }
 
     // move to tui funstuff

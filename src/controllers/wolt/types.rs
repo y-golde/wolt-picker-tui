@@ -17,10 +17,20 @@ pub struct ResterauntFiltering {
 }
 
 #[derive(Debug, Deserialize, Clone)]
+pub struct ResterauntVenue {
+    pub address: String,
+    pub estimate_range: String,
+    pub location: Vec<f64>,
+    pub delivery_price: String,
+    pub slug: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
 pub struct ResterauntItem {
     pub link: ResterauntLink,
     pub title: String,
     pub filtering: ResterauntFiltering,
+    pub venue: ResterauntVenue,
 }
 
 #[derive(Debug, Deserialize, Clone)]
