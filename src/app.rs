@@ -6,10 +6,10 @@ use crossterm::{
 use ratatui::{
     prelude::{Alignment, Constraint, CrosstermBackend, Direction, Layout, Rect, Terminal},
     style::{Color, Style, Stylize},
-    text::{Line, Span, Text},
+    text::{Line, Span},
     widgets::{
         canvas::{self, Canvas, Map, Points},
-        Paragraph, Widget, Wrap,
+        Block, Borders, Paragraph, Wrap,
     },
     Frame,
 };
@@ -21,10 +21,10 @@ use crate::controllers::WoltAPITypes::ResterauntItem;
 
 pub struct App {
     terminal: Terminal<CrosstermBackend<Stdout>>,
-    input: String,
     should_quit: bool,
     address: (f32, f32),
     current_zoom: f64,
+    choice_index: usize,
 }
 
 const MAX_MAP_ZOOM_OUT_DISTANCE: f64 = 10.0;
@@ -37,10 +37,10 @@ impl App {
 
         App {
             terminal,
-            input: String::from(""),
             should_quit: false,
             address,
             current_zoom: MAX_MAP_ZOOM_OUT_DISTANCE,
+            choice_index: 0,
         }
     }
 
@@ -51,14 +51,15 @@ impl App {
         Ok(())
     }
 
-    pub fn _teardown(&self) -> Result<()> {
+    pub fn _teardown(&mut self) -> Result<()> {
         stdout().execute(LeaveAlternateScreen)?;
         disable_raw_mode()?;
 
+        self.terminal.clear()?;
         Ok(())
     }
 
-    pub fn update(&mut self) -> Result<()> {
+    pub fn update(&mut self, choices_len: &usize) -> Result<()> {
         if crossterm::event::poll(std::time::Duration::from_millis(25))? {
             if let Event::Key(key) = crossterm::event::read().unwrap() {
                 if key.kind == KeyEventKind::Press {
@@ -66,11 +67,19 @@ impl App {
                         KeyCode::Enter => {
                             self.should_quit = true;
                         }
-                        KeyCode::Char(c) => {
-                            self.input.push(c);
+                        KeyCode::Down => {
+                            if self.choice_index == choices_len - 1 {
+                                self.choice_index = 0;
+                            } else {
+                                self.choice_index += 1;
+                            }
                         }
-                        KeyCode::Backspace => {
-                            self.input.pop();
+                        KeyCode::Up => {
+                            if self.choice_index == 0 {
+                                self.choice_index = choices_len - 1;
+                            } else {
+                                self.choice_index -= 1;
+                            }
                         }
                         _ => {}
                     }
@@ -126,8 +135,36 @@ impl App {
         )
     }
 
-    pub fn display_restaurant(&mut self, restaurant: &ResterauntItem) -> Result<()> {
-        self.current_zoom = MAX_MAP_ZOOM_OUT_DISTANCE;
+    fn get_choices_element(choices: &Vec<String>, choice_index: usize) -> Vec<Line> {
+        let mut lines: Vec<Line> = vec![];
+
+        let mut index = 0;
+        for choice in choices {
+            let span;
+            if index == choice_index {
+                span = Span::styled(format!(">> {}", choice), Style::new().on_light_yellow());
+            } else {
+                span = Span::styled(format!("   {}", choice), Style::new());
+            }
+
+            lines.push(Line::from(span));
+            index += 1;
+        }
+
+        lines
+    }
+
+    pub fn display_restaurant_question(
+        &mut self,
+        question: &str,
+        restaurant: &ResterauntItem,
+        choices: Vec<String>,
+        refresh_zoom: bool,
+    ) -> Result<usize> {
+        if refresh_zoom {
+            self.current_zoom = MAX_MAP_ZOOM_OUT_DISTANCE;
+        }
+        let choice_index: usize;
 
         loop {
             let address_coordinates: (f64, f64) = (self.address.0.into(), self.address.1.into());
@@ -140,20 +177,27 @@ impl App {
 
             self.update_zoom((addr_lat, addr_lon), restaurant_coordinates);
 
-            let description = App::get_restaurant_description(&restaurant_clone);
+            let restaurant_description = App::get_restaurant_description(&restaurant_clone);
+
+            let choices_element = App::get_choices_element(&choices, self.choice_index);
+
+            let choices_len = &choices.len();
 
             self.terminal.draw(|f| {
                 let (layout, sub_layout) = App::get_restaurant_display(&f);
 
                 f.render_widget(
-                    Paragraph::new(description)
+                    Paragraph::new(format!("{} \n {}", question, restaurant_description))
                         .alignment(Alignment::Center)
                         .white()
                         .on_light_blue()
                         .wrap(Wrap { trim: false }),
                     sub_layout[0],
                 );
-                f.render_widget(Paragraph::new(self.input.as_str()), sub_layout[1]);
+                f.render_widget(
+                    Paragraph::new(choices_element).block(Block::default().borders(Borders::ALL)),
+                    sub_layout[1],
+                );
 
                 let map = Map {
                     resolution: canvas::MapResolution::High,
@@ -192,13 +236,16 @@ impl App {
                 ); // work on the map
             })?;
 
-            self.update();
+            self.update(choices_len).unwrap();
 
             if self.should_quit {
+                choice_index = self.choice_index;
+                self.choice_index = 0;
                 self.should_quit = false;
                 break;
             }
         }
-        Ok(())
+
+        Ok(choice_index)
     }
 }

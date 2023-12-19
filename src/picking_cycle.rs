@@ -2,7 +2,9 @@ use crate::app::App;
 use crate::controllers;
 use crate::controllers::WoltAPITypes::ResterauntItem;
 use controllers::WoltAPITypes::GetAllRestaurantsResponse;
+use rand::prelude::SliceRandom;
 use rand::Rng;
+
 pub struct PickingCycle {
     address: (f32, f32), // impl!
     liked_category: String,
@@ -27,7 +29,7 @@ impl PickingCycle {
 
     fn get_addr() -> (f32, f32) {
         // TODO: impl with addr
-        return (32.08462100522144, 34.8215676471591);
+        return (32.079612, 34.811399);
     }
 
     /*
@@ -81,10 +83,62 @@ impl PickingCycle {
     }
 
     pub async fn start(&mut self) {
-        let random_restaurant = self.get_random_restaurant_pool().await;
-        self.app_instance
-            .display_restaurant(&random_restaurant)
-            .unwrap();
+        let choice: ResterauntItem;
+
+        loop {
+            let random_restaurant = self.get_random_restaurant_pool().await;
+            let first_question_choices = vec![String::from("yes"), String::from("no")];
+            let first_choice_index = self
+                .app_instance
+                .display_restaurant_question(
+                    "Do you want to eat at",
+                    &random_restaurant,
+                    first_question_choices,
+                    true,
+                )
+                .unwrap();
+
+            if first_choice_index == 0 {
+                choice = random_restaurant;
+                break;
+            }
+
+            let restaurant_categories = random_restaurant.filtering.filters[0].values.to_owned();
+            let random_category = restaurant_categories
+                .choose(&mut rand::thread_rng())
+                .unwrap();
+
+            let second_question_choices = vec![
+                String::from("yes"),
+                String::from("no"),
+                String::from("skip"),
+            ];
+            let second_choice_index = self
+                .app_instance
+                .display_restaurant_question(
+                    format!("are you in the mood for {} today?", random_category).as_str(),
+                    &random_restaurant,
+                    second_question_choices,
+                    false,
+                )
+                .unwrap();
+
+            if second_choice_index == 0 {
+                self.liked_category = random_category.to_string();
+            } else if second_choice_index == 1 {
+                self.disliked_categories.push(random_category.to_string());
+            }
+        }
+        let restaurant_name = choice.title;
+
+        let restaurant_slug = choice.venue.slug;
+
+        self.app_instance._teardown().unwrap();
+
+        println!(
+            "{} it is!, go visit https://wolt.com/en/isr/tel-aviv/restaurant/{} to order!",
+            restaurant_name, restaurant_slug
+        )
     }
 
     // move to tui funstuff
