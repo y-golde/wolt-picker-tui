@@ -1,18 +1,9 @@
-use crossterm::{
-    event::{Event, KeyCode, KeyEventKind},
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
-    ExecutableCommand,
-};
+use crossterm::event::{Event, KeyCode, KeyEventKind};
 use rand::Rng;
 use ratatui::{
-    prelude::{Alignment, Constraint, CrosstermBackend, Direction, Layout, Rect, Terminal},
+    prelude::{Alignment, CrosstermBackend, Rect, Terminal},
     style::{Color, Style, Stylize},
-    text::{Line, Span},
-    widgets::{
-        canvas::{self, Canvas, Map, Points},
-        Block, Borders, Padding, Paragraph, Wrap,
-    },
-    Frame,
+    widgets::{Block, Borders, Paragraph, Wrap},
 };
 use std::io::{stdout, Result, Stdout};
 
@@ -31,7 +22,7 @@ const MODAL_HEIGHT: u16 = 15;
 
 impl EndScreenApp {
     pub fn new() -> Self {
-        let mut terminal = Terminal::new(CrosstermBackend::new(stdout())).unwrap();
+        let terminal = Terminal::new(CrosstermBackend::new(stdout())).unwrap();
 
         Self {
             terminal,
