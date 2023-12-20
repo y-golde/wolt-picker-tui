@@ -1,4 +1,4 @@
-use crate::app::App;
+use crate::app::{EndScreenApp, RestaurantDisplayApp};
 use crate::controllers;
 use crate::controllers::WoltAPITypes::ResterauntItem;
 use controllers::WoltAPITypes::GetAllRestaurantsResponse;
@@ -10,20 +10,23 @@ pub struct PickingCycle {
     liked_category: String,
     disliked_categories: Vec<String>,
     restaurants: Option<GetAllRestaurantsResponse>,
-    app_instance: App,
+    restaurant_display_instance: RestaurantDisplayApp,
+    end_screen_instance: EndScreenApp,
 }
 
 impl PickingCycle {
     pub fn new() -> Self {
         let address = PickingCycle::get_addr();
-        let app_instance = App::new(address);
+        let restaurant_display_instance = RestaurantDisplayApp::new(address);
+        let end_screen_instance = EndScreenApp::new();
 
         PickingCycle {
             address,
             liked_category: String::from(""),
             disliked_categories: vec![],
             restaurants: None,
-            app_instance,
+            restaurant_display_instance,
+            end_screen_instance,
         }
     }
 
@@ -89,7 +92,7 @@ impl PickingCycle {
             let random_restaurant = self.get_random_restaurant_pool().await;
             let first_question_choices = vec![String::from("yes"), String::from("no")];
             let first_choice_index = self
-                .app_instance
+                .restaurant_display_instance
                 .display_restaurant_question(
                     "Do you want to eat at",
                     &random_restaurant,
@@ -113,7 +116,7 @@ impl PickingCycle {
                 String::from("skip"),
             ];
             let second_choice_index = self
-                .app_instance
+                .restaurant_display_instance
                 .display_category_question(
                     format!("are you in the mood for {} today?", random_category).as_str(),
                     &random_restaurant,
@@ -131,13 +134,13 @@ impl PickingCycle {
 
         let restaurant_slug = choice.venue.slug;
 
-        self.app_instance._teardown().unwrap();
+        self.restaurant_display_instance._teardown().unwrap();
 
-        println!(
+        let end_message = format!(
             "{} it is!, go visit https://wolt.com/en/isr/tel-aviv/restaurant/{} to order!",
             restaurant_name, restaurant_slug
-        )
-    }
+        );
 
-    // move to tui funstuff
+        self.end_screen_instance.display_end_screen(end_message);
+    }
 }

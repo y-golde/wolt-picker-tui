@@ -19,7 +19,7 @@ use std::rc::Rc;
 
 use crate::controllers::WoltAPITypes::ResterauntItem;
 
-pub struct App {
+pub struct RestaurantDisplayApp {
     terminal: Terminal<CrosstermBackend<Stdout>>,
     should_quit: bool,
     address: (f32, f32),
@@ -30,12 +30,12 @@ pub struct App {
 const MAX_MAP_ZOOM_OUT_DISTANCE: f64 = 20.0;
 const MIN_MAP_ZOOM_OUT_DISTANCE: f64 = 0.3;
 
-impl App {
+impl RestaurantDisplayApp {
     pub fn new(address: (f32, f32)) -> Self {
         let mut terminal = Terminal::new(CrosstermBackend::new(stdout())).unwrap();
         terminal.clear().unwrap();
 
-        App {
+        RestaurantDisplayApp {
             terminal,
             should_quit: false,
             address,
@@ -166,7 +166,7 @@ impl App {
     }
 
     fn render_choices(f: &mut Frame, choices: &Vec<String>, choice_index: usize, area: Rect) {
-        let choices_element = App::get_choices_element(&choices, choice_index);
+        let choices_element = RestaurantDisplayApp::get_choices_element(&choices, choice_index);
 
         f.render_widget(
             Paragraph::new(choices_element).block(Block::default().borders(Borders::ALL)),
@@ -228,11 +228,11 @@ impl App {
         address_coordinates: (f64, f64),
         restaurant_coordinates: (f64, f64),
     ) {
-        let (layout, sub_layout) = App::get_restaurant_display(&f);
+        let (layout, sub_layout) = RestaurantDisplayApp::get_restaurant_display(&f);
 
-        App::render_top_section(f, top_section_text, sub_layout[0]);
-        App::render_choices(f, choices, choice_index, sub_layout[1]);
-        App::render_map(
+        RestaurantDisplayApp::render_top_section(f, top_section_text, sub_layout[0]);
+        RestaurantDisplayApp::render_choices(f, choices, choice_index, sub_layout[1]);
+        RestaurantDisplayApp::render_map(
             f,
             zoom,
             address_coordinates,
@@ -267,13 +267,14 @@ impl App {
 
             self.update_zoom(address_coordinates, restaurant_coordinates);
 
-            let restaurant_description = App::get_restaurant_description(&restaurant_clone);
+            let restaurant_description =
+                RestaurantDisplayApp::get_restaurant_description(&restaurant_clone);
             let top_section_text = format!("{} \n {}", question, restaurant_description);
 
             let zoom = self.current_zoom;
 
             self.terminal.draw(|f| {
-                App::render_resteraunt_display(
+                RestaurantDisplayApp::render_resteraunt_display(
                     f,
                     top_section_text,
                     &choices,
@@ -311,7 +312,7 @@ impl App {
             let zoom = self.current_zoom;
 
             self.terminal.draw(|f| {
-                App::render_resteraunt_display(
+                RestaurantDisplayApp::render_resteraunt_display(
                     f,
                     question.to_string(),
                     &choices,
